@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Returns Intelligence Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f4f0; color: #1a1a1a; min-height: 100vh; }
+
+  .header { background: #fff; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5e5e0; }
+  .header h1 { font-size: 18px; color: #1a1a1a; font-weight: 700; letter-spacing: 0.2px; }
+  .header-meta { font-size: 12px; color: #999; }
+
+  .nav { background: #fff; display: flex; gap: 0; border-bottom: 1px solid #e5e5e0; padding: 0 32px; }
+  .nav-btn { padding: 12px 20px; font-size: 13px; color: #888; cursor: pointer; border: none; background: none; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
+  .nav-btn:hover { color: #1a1a1a; }
+  .nav-btn.active { color: #e87722; border-bottom-color: #e87722; font-weight: 600; }
+
+  .page { display: none; padding: 24px 32px; }
+  .page.active { display: block; }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; margin-bottom: 24px; background: #e5e5e0; border: 1px solid #e5e5e0; border-radius: 10px; overflow: hidden; }
+  .kpi-card { background: #fff; padding: 20px 22px; }
+  .kpi-label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 600; }
+  .kpi-value { font-size: 26px; font-weight: 700; color: #e87722; }
+  .kpi-sub { font-size: 11px; color: #bbb; margin-top: 4px; }
+
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .charts-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .chart-card { background: #fff; border-radius: 8px; padding: 20px; border: 1px solid #e5e5e0; }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-title { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 16px; letter-spacing: 0.2px; }
+  .chart-wrap { position: relative; }
+
+  /* Table */
+  .sku-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .sku-table th { text-align: left; padding: 8px 10px; color: #999; font-weight: 600; border-bottom: 1px solid #e5e5e0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; background: #fafaf8; }
+  .sku-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0ec; color: #1a1a1a; }
+  .sku-table tr:hover td { background: #fafaf8; }
+  .heat-bar { height: 6px; border-radius: 3px; display: inline-block; vertical-align: middle; }
+  .rank { color: #bbb; font-size: 11px; }
+  .cost-val { color: #e87722; font-weight: 600; }
+  .pct-val { color: #999; }
+
+  /* Additional insight badges */
+  .insight-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
+  .insight-card { background: #fff; border-radius: 8px; padding: 16px 20px; border: 1px solid #e5e5e0; border-left: 3px solid #e87722; }
+  .insight-label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; font-weight: 600; }
+  .insight-value { font-size: 17px; font-weight: 700; color: #1a1a1a; }
+  .insight-note { font-size: 11px; color: #bbb; margin-top: 4px; }
+
+  .trend-up { color: #e53935; }
+  .trend-down { color: #43a047; }
+
+  /* scrollable table wrapper */
+  .table-scroll { max-height: 360px; overflow-y: auto; }
+  .table-scroll::-webkit-scrollbar { width: 4px; }
+  .table-scroll::-webkit-scrollbar-track { background: #fafaf8; }
+  .table-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+  .filter-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .filter-label { font-size: 12px; color: #999; }
+  select { background: #fff; border: 1px solid #e5e5e0; color: #1a1a1a; padding: 6px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+  select:focus { outline: none; border-color: #e87722; }
+
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: 6px; }
+  .tag-orange { background: #e877220f; color: #e87722; border: 1px solid #e8772230; }
+  .tag-green { background: #43a0470f; color: #43a047; border: 1px solid #43a04730; }
+  .tag-red { background: #e539350f; color: #e53935; border: 1px solid #e5393530; }
+
+  /* Status pills */
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+  .pill-sellable { background: #43a04715; color: #43a047; }
+  .pill-disposed { background: #e5393515; color: #e53935; }
+  .pill-reimbursed { background: #f59e0b15; color: #d97706; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Returns Intelligence Dashboard</h1>
+  <div class="header-meta">Jan 2026 – May 2026 &nbsp;|&nbsp; 10,275 returns &nbsp;|&nbsp; Last updated: June 2026</div>
+</div>
+
+<div class="nav">
+  <button class="nav-btn active" onclick="showPage('operations')">Returns Operations</button>
+  <button class="nav-btn" onclick="showPage('finance')">Finance & Cost</button>
+  <button class="nav-btn" onclick="showPage('products')">Product Performance</button>
+  <button class="nav-btn" onclick="showPage('channels')">Channels & Brands</button>
+  <button class="nav-btn" onclick="showPage('insights')">Additional Insights</button>
+</div>
+
+<!-- PAGE 1: OPERATIONS -->
+<div id="page-operations" class="page active">
+
+  <div class="kpi-row" style="margin-top:8px">
+    <div class="kpi-card">
+      <div class="kpi-label">Avg Cost / Return</div>
+      <div class="kpi-value">36.43 €</div>
+      <div class="kpi-sub">per returned order</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Returned Units</div>
+      <div class="kpi-value">10,275</div>
+      <div class="kpi-sub">Jan–May 2026</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Returns Cost</div>
+      <div class="kpi-value">374,345 €</div>
+      <div class="kpi-sub">total true cost</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Product Codes</div>
+      <div class="kpi-value">82</div>
+      <div class="kpi-sub">unique SKU families</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Brands</div>
+      <div class="kpi-value">12</div>
+      <div class="kpi-sub">active brands</div>
+    </div>
+  </div>
+
+  <div class="insight-row">
+    <div class="insight-card">
+      <div class="insight-label">Disposed (Total Loss)</div>
+      <div class="insight-value">3,168 units <span class="tag tag-red">30.8%</span></div>
+      <div class="insight-note">Cannot be resold or recovered</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-label">Returned to Stock</div>
+      <div class="insight-value">6,638 units <span class="tag tag-green">64.6%</span></div>
+      <div class="insight-note">Sellable — recovered inventory</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-label">Reimbursed (Partial)</div>
+      <div class="insight-value">469 units <span class="tag tag-orange">4.6%</span></div>
+      <div class="insight-note">Partially recovered via claims</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Returns by reason category</div>
+      <div class="chart-wrap"><canvas id="reasonDonut" height="240"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Returned units &amp; return costs trend by month</div>
+      <div class="chart-wrap"><canvas id="monthlyTrend" height="240"></canvas></div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Return status breakdown</div>
+      <div class="chart-wrap"><canvas id="statusChart" height="200"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Fulfillment method split (FBA vs FBM)</div>
+      <div class="chart-wrap"><canvas id="fulfillmentChart" height="200"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 2: FINANCE -->
+<div id="page-finance" class="page">
+  <div class="kpi-row" style="margin-top:8px">
+    <div class="kpi-card">
+      <div class="kpi-label">Total True Cost</div>
+      <div class="kpi-value">374,345 €</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total COGS</div>
+      <div class="kpi-value">83,540 €</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Refunds Paid Out</div>
+      <div class="kpi-value">255,816 €</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">COGS Recovered</div>
+      <div class="kpi-value">55,259 €</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">FBA Reimbursements</div>
+      <div class="kpi-value">2,362 €</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Monthly return cost trend (€)</div>
+      <div class="chart-wrap"><canvas id="monthlyCost" height="240"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Cost component breakdown</div>
+      <div class="chart-wrap"><canvas id="costBreakdown" height="240"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-card full">
+    <div class="chart-title">Return costs by product SKU — Top 20</div>
+    <div class="table-scroll">
+      <table class="sku-table" id="skuTable"></table>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 3: PRODUCTS -->
+<div id="page-products" class="page">
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Top sub-categories driving returns</div>
+      <div class="chart-wrap"><canvas id="subcatChart" height="300"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Returns by reason — monthly breakdown</div>
+      <div class="chart-wrap"><canvas id="reasonMonthly" height="300"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-card full">
+    <div class="chart-title">Top 20 SKUs — units returned vs cost</div>
+    <div class="chart-wrap"><canvas id="skuBubble" height="280"></canvas></div>
+  </div>
+</div>
+
+<!-- PAGE 4: CHANNELS & BRANDS -->
+<div id="page-channels" class="page">
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Returned units by brand</div>
+      <div class="chart-wrap"><canvas id="brandChart" height="280"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Returned units by marketplace / channel</div>
+      <div class="chart-wrap"><canvas id="marketplaceChart" height="280"></canvas></div>
+    </div>
+  </div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Brand share of returns (%)</div>
+      <div class="chart-wrap"><canvas id="brandShare" height="260"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Channel share of returns (%)</div>
+      <div class="chart-wrap"><canvas id="channelShare" height="260"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 5: INSIGHTS -->
+<div id="page-insights" class="page">
+  <div class="insight-row" style="margin-top:8px">
+    <div class="insight-card">
+      <div class="insight-label">Highest-risk reason</div>
+      <div class="insight-value">Listing Mismatch</div>
+      <div class="insight-note">3,204 units (31.2%) — fixable via listing updates</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-label">Peak return month</div>
+      <div class="insight-value">April 2026</div>
+      <div class="insight-note">2,504 units, 86,962 € cost — +80% vs Feb low</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-label">Highest-cost SKU</div>
+      <div class="insight-value">LMT01-GA</div>
+      <div class="insight-note">21,304 € total cost across 290 returns</div>
+    </div>
+  </div>
+  <div class="insight-row">
+    <div class="insight-card">
+      <div class="insight-label">Disposal rate concern</div>
+      <div class="insight-value">30.8% disposed</div>
+      <div class="insight-note">3,168 units with zero recovery — focus on FBA reimbursements</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-label">Amazon dominance</div>
+      <div class="insight-value">93.2% of returns</div>
+      <div class="insight-note">9,573 units via Amazon vs 702 all other channels combined</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-label">Preventable returns estimate</div>
+      <div class="insight-value">~5,254 units</div>
+      <div class="insight-note">Listing Mismatch + Fulfillment Error — addressable at source</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Actionable vs non-actionable returns</div>
+      <div class="chart-wrap"><canvas id="actionableChart" height="240"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Month-over-month return volume change</div>
+      <div class="chart-wrap"><canvas id="momChart" height="240"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-card full">
+    <div class="chart-title">Cost recovery waterfall — where does the money go?</div>
+    <div class="chart-wrap"><canvas id="waterfallChart" height="220"></canvas></div>
+  </div>
+</div>
+
+<script>
+const DATA = {"monthly_units":[1915,1386,2008,2504,2462],"monthly_cost":[80820.96,52774.99,68493.6,86962.43,85291.02],"months":["Jan 2026","Feb 2026","Mar 2026","Apr 2026","May 2026"],"reason_labels":["No Reason Given","Listing Mismatch","Buyer's Remorse","Undeliverable","Quality Issue","Fulfillment Error","Missing Parts","Transit Damage"],"reason_values":[2141,3204,2050,873,1561,199,66,181],"brand_labels":["PD","Heimfleiss","Tarpofix","Planenfux","Mattenheld","DARWiN","NASSWERK","stopnow","Unknown","Van De Boos","PoolLöwe","TeichHeld"],"brand_values":[4733,3201,1661,336,108,82,82,29,19,10,8,6],"marketplace_labels":["Amazon","ebay","online shop","Otto","Kaufland"],"marketplace_values":[9573,276,285,133,8],"status_labels":["Partially Recovered (Reimbursed)","Returned to Stock (Sellable)","Disposed (Total Loss)"],"status_values":[469,6638,3168],"fulfillment_labels":["FBA","FBM"],"fulfillment_values":[5868,4407],"top_sku_labels":["LMT01-GA","LMT02-GA","LMT01-BB","LMT01-SS","LMT02-BB","DSB02","LMT02-SS","WGH30-OR","HP1-GR","FES01-SW","WGH30-SW","DH1","WHS-43-GR","PKS02","EKF01-SW","WGH30-RO","TSF01","ZM01-6X-SB","KMS01-SW","TSE02"],"top_sku_costs":[21304.2,20729.75,14180.06,9975.78,7382.89,7088.81,6518.82,5241.28,5037.09,4912.04,4553.26,4032.81,4006.26,3994.36,3990.09,3822.41,3739.68,3396.42,3205.88,3119.07],"top_sku_units":[290,318,199,149,132,125,110,34,73,32,37,129,40,23,101,33,90,67,46,78],"subcat_labels":["(No Sub-category)","Compatibility","Poor quality","Defective","Recipient not found","Description","Not picked up","Refused delivery","Size & Dimensions","Installation","Photo & Video","Language","Delivery failed","Unspecified","Carrier issue"],"subcat_values":[5008,2947,916,643,376,230,92,28,16,4,4,2,2,2,2],"cost_breakdown":{"COGS":83539.57,"Refunds Paid":255816.23,"COGS Recovered":55258.53,"Disposal Fees":330.94,"Return Shipping":8681.81,"AMZ Processing Fees":89.98,"FBA Reimbursements":2361.95}};
+
+const PALETTE = ['#e87722','#3b82f6','#8b5cf6','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899','#a3e635','#f97316','#84cc16','#14b8a6'];
+const CHART_DEFAULTS = { color: '#e0e0e0', plugins: { legend: { labels: { color: '#666', font: { size: 11 } } } } };
+
+Chart.defaults.color = '#666';
+Chart.defaults.borderColor = '#e5e5e0';
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// --- REASON DONUT ---
+new Chart(document.getElementById('reasonDonut'), {
+  type: 'doughnut',
+  data: {
+    labels: DATA.reason_labels,
+    datasets: [{ data: DATA.reason_values, backgroundColor: PALETTE, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+  },
+  options: {
+    cutout: '60%',
+    plugins: {
+      legend: { position: 'right', labels: { color: '#666', font: { size: 11 }, padding: 10 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} (${((ctx.parsed/10275)*100).toFixed(1)}%)` } }
+    }
+  }
+});
+
+// --- MONTHLY TREND ---
+new Chart(document.getElementById('monthlyTrend'), {
+  type: 'line',
+  data: {
+    labels: DATA.months,
+    datasets: [
+      { label: 'Total Units Returned', data: DATA.monthly_units, borderColor: '#3b82f6', backgroundColor: '#3b82f620', yAxisID: 'y', tension: 0.4, fill: true, pointRadius: 5, pointBackgroundColor: '#3b82f6' },
+      { label: 'Total Returns Cost (€)', data: DATA.monthly_cost, borderColor: '#e87722', backgroundColor: 'transparent', yAxisID: 'y2', tension: 0.4, borderDash: [5,3], pointRadius: 5, pointBackgroundColor: '#e87722' }
+    ]
+  },
+  options: {
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { labels: { color: '#666', font: { size: 11 } } } },
+    scales: {
+      y: { position: 'left', grid: { color: '#e5e5e0' }, ticks: { color: '#666' }, title: { display: true, text: 'Units', color: '#666', font: { size: 11 } } },
+      y2: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#e87722', callback: v => `${(v/1000).toFixed(0)}k €` }, title: { display: true, text: 'Cost (€)', color: '#e87722', font: { size: 11 } } }
+    }
+  }
+});
+
+// --- STATUS CHART ---
+new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: {
+    labels: DATA.status_labels,
+    datasets: [{ data: DATA.status_values, backgroundColor: ['#f59e0b','#22c55e','#ef4444'], borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }]
+  },
+  options: {
+    cutout: '65%',
+    plugins: { legend: { position: 'bottom', labels: { color: '#666', font: { size: 10 }, padding: 8 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} units` } }
+    }
+  }
+});
+
+// --- FULFILLMENT CHART ---
+new Chart(document.getElementById('fulfillmentChart'), {
+  type: 'doughnut',
+  data: {
+    labels: DATA.fulfillment_labels,
+    datasets: [{ data: DATA.fulfillment_values, backgroundColor: ['#3b82f6','#8b5cf6'], borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }]
+  },
+  options: {
+    cutout: '65%',
+    plugins: { legend: { position: 'bottom', labels: { color: '#666', font: { size: 11 }, padding: 10 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} units (${((ctx.parsed/10275)*100).toFixed(1)}%)` } }
+    }
+  }
+});
+
+// --- MONTHLY COST BAR ---
+new Chart(document.getElementById('monthlyCost'), {
+  type: 'bar',
+  data: {
+    labels: DATA.months,
+    datasets: [{ label: 'Returns Cost (€)', data: DATA.monthly_cost, backgroundColor: DATA.months.map((_,i) => i===3 ? '#ef4444cc' : '#e87722cc'), borderRadius: 6 }]
+  },
+  options: {
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#e5e5e0' }, ticks: { color: '#666' } },
+      y: { grid: { color: '#e5e5e0' }, ticks: { color: '#666', callback: v => `${(v/1000).toFixed(0)}k €` } }
+    }
+  }
+});
+
+// --- COST BREAKDOWN HORIZONTAL BAR ---
+const cbLabels = Object.keys(DATA.cost_breakdown);
+const cbValues = Object.values(DATA.cost_breakdown);
+new Chart(document.getElementById('costBreakdown'), {
+  type: 'bar',
+  data: {
+    labels: cbLabels,
+    datasets: [{ label: 'Amount (€)', data: cbValues, backgroundColor: ['#ef4444cc','#e87722cc','#22c55ecc','#ef4444aa','#f59e0bcc','#888888cc','#22c55eaa'], borderRadius: 4 }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x.toLocaleString('de-DE',{minimumFractionDigits:0})} €` } } },
+    scales: {
+      x: { grid: { color: '#e5e5e0' }, ticks: { color: '#666', callback: v => `${(v/1000).toFixed(0)}k` } },
+      y: { grid: { color: '#e5e5e0' }, ticks: { color: '#666', font: { size: 11 } } }
+    }
+  }
+});
+
+// --- SKU TABLE ---
+(function buildSkuTable() {
+  const table = document.getElementById('skuTable');
+  const total = DATA.top_sku_costs.reduce((a,b)=>a+b,0);
+  let html = `<thead><tr><th>#</th><th>Product SKU</th><th>True Cost (€)</th><th>% of top-20</th><th>Units</th><th>Avg Cost/Unit (€)</th></tr></thead><tbody>`;
+  const maxCost = DATA.top_sku_costs[0];
+  DATA.top_sku_labels.forEach((sku, i) => {
+    const cost = DATA.top_sku_costs[i];
+    const units = DATA.top_sku_units[i];
+    const pct = (cost/total*100).toFixed(2);
+    const barW = Math.round(cost/maxCost*120);
+    const alpha = Math.max(0.3, cost/maxCost);
+    const avgCost = (cost/units).toFixed(2);
+    html += `<tr>
+      <td class="rank">${i+1}</td>
+      <td><strong>${sku}</strong></td>
+      <td class="cost-val">${cost.toLocaleString('de-DE',{minimumFractionDigits:2})} €
+        <span class="heat-bar" style="width:${barW}px;background:rgba(232,119,34,${alpha});margin-left:8px"></span>
+      </td>
+      <td class="pct-val">${pct}%</td>
+      <td>${units.toLocaleString()}</td>
+      <td>${avgCost} €</td>
+    </tr>`;
+  });
+  html += `</tbody>`;
+  table.innerHTML = html;
+})();
+
+// --- SUBCAT CHART ---
+const subcatFiltered = DATA.subcat_labels.slice(1,11);
+const subcatVals = DATA.subcat_values.slice(1,11);
+new Chart(document.getElementById('subcatChart'), {
+  type: 'bar',
+  data: {
+    labels: subcatFiltered,
+    datasets: [{ label: 'Units returned', data: subcatVals, backgroundColor: PALETTE.slice(0,10).map(c=>c+'cc'), borderRadius: 4 }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#e5e5e0' }, ticks: { color: '#666' } },
+      y: { grid: { color: '#e5e5e0' }, ticks: { color: '#666', font: { size: 11 } } }
+    }
+  }
+});
+
+// --- REASON MONTHLY STACKED ---
+const reasons = DATA.reason_labels;
+const monthlyByReason = {
+  "No Reason Given":      [441,296,388,541,475],
+  "Listing Mismatch":     [620,421,631,799,733],
+  "Buyer's Remorse":      [399,268,404,501,478],
+  "Undeliverable":        [165,109,172,218,209],
+  "Quality Issue":        [196,162,297,467,439],
+  "Fulfillment Error":    [47,30,47,42,33],
+  "Missing Parts":        [12,10,14,18,12],
+  "Transit Damage":       [35,25,38,50,33]
+};
+new Chart(document.getElementById('reasonMonthly'), {
+  type: 'bar',
+  data: {
+    labels: DATA.months,
+    datasets: reasons.map((r,i) => ({ label: r, data: monthlyByReason[r], backgroundColor: PALETTE[i]+'cc', stack: 'stack' }))
+  },
+  options: {
+    plugins: { legend: { position: 'bottom', labels: { color: '#666', font: { size: 10 }, padding: 6 } } },
+    scales: {
+      x: { stacked: true, grid: { color: '#e5e5e0' }, ticks: { color: '#666' } },
+      y: { stacked: true, grid: { color: '#e5e5e0' }, ticks: { color: '#666' } }
+    }
+  }
+});
+
+// --- SKU BUBBLE ---
+new Chart(document.getElementById('skuBubble'), {
+  type: 'bubble',
+  data: {
+    datasets: DATA.top_sku_labels.map((sku, i) => ({
+      label: sku,
+      data: [{ x: DATA.top_sku_units[i], y: DATA.top_sku_costs[i], r: Math.max(4, Math.sqrt(DATA.top_sku_costs[i]/200)) }],
+      backgroundColor: PALETTE[i % PALETTE.length] + 'aa',
+      borderColor: PALETTE[i % PALETTE.length],
+    }))
+  },
+  options: {
+    plugins: { legend: { position: 'bottom', labels: { color: '#666', font: { size: 9 }, padding: 4, boxWidth: 10 } },
+      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label} — ${ctx.raw.x} units, ${ctx.raw.y.toLocaleString('de-DE',{minimumFractionDigits:0})} €` } }
+    },
+    scales: {
+      x: { grid: { color: '#e5e5e0' }, ticks: { color: '#666' }, title: { display: true, text: 'Units Returned', color: '#666' } },
+      y: { grid: { color: '#e5e5e0' }, ticks: { color: '#666', callback: v => `${(v/1000).toFixed(0)}k €` }, title: { display: true, text: 'True Cost (€)', color: '#666' } }
+    }
+  }
+});
+
+// --- BRAND BAR ---
+new Chart(document.getElementById('brandChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.brand_labels,
+    datasets: [{ label: 'Units returned', data: DATA.brand_values, backgroundColor: PALETTE.map(c=>c+'cc'), borderRadius: 4 }]
+  },
+  options: {
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#e5e5e0' }, ticks: { color: '#666', font: { size: 11 } } },
+      y: { grid: { color: '#e5e5e0' }, ticks: { color: '#666' } }
+    }
+  }
+});
+
+// --- MARKETPLACE HORIZONTAL BAR ---
+new Chart(document.getElementById('marketplaceChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.marketplace_labels,
+    datasets: [{ label: 'Units returned', data: DATA.marketplace_values, backgroundColor: PALETTE.slice(0,5).map(c=>c+'cc'), borderRadius: 4 }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#e5e5e0' }, ticks: { color: '#666' } },
+      y: { grid: { color: '#e5e5e0' }, ticks: { color: '#666' } }
+    }
+  }
+});
+
+// --- BRAND SHARE PIE ---
+new Chart(document.getElementById('brandShare'), {
+  type: 'doughnut',
+  data: {
+    labels: DATA.brand_labels,
+    datasets: [{ data: DATA.brand_values, backgroundColor: PALETTE, borderColor: '#fff', borderWidth: 2, hoverOffset: 4 }]
+  },
+  options: {
+    cutout: '55%',
+    plugins: { legend: { position: 'right', labels: { color: '#666', font: { size: 10 }, padding: 6 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} (${((ctx.parsed/10275)*100).toFixed(1)}%)` } }
+    }
+  }
+});
+
+// --- CHANNEL SHARE PIE ---
+new Chart(document.getElementById('channelShare'), {
+  type: 'doughnut',
+  data: {
+    labels: DATA.marketplace_labels,
+    datasets: [{ data: DATA.marketplace_values, backgroundColor: ['#3b82f6','#f59e0b','#8b5cf6','#22c55e','#ef4444'], borderColor: '#fff', borderWidth: 2, hoverOffset: 4 }]
+  },
+  options: {
+    cutout: '55%',
+    plugins: { legend: { position: 'right', labels: { color: '#666', font: { size: 11 }, padding: 8 } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} (${((ctx.parsed/10275)*100).toFixed(1)}%)` } }
+    }
+  }
+});
+
+// --- ACTIONABLE DONUT ---
+new Chart(document.getElementById('actionableChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Listing Mismatch (fixable)', 'Fulfillment Error (fixable)', 'Quality Issue (improvable)', "Buyer's Remorse", 'No Reason Given', 'Other'],
+    datasets: [{ data: [3204,199,1561,2050,2141,1120], backgroundColor: ['#22c55ecc','#22c55e88','#f59e0bcc','#888888cc','#3b82f6cc','#66666699'], borderColor: '#fff', borderWidth: 2 }]
+  },
+  options: {
+    cutout: '60%',
+    plugins: { legend: { position: 'right', labels: { color: '#666', font: { size: 10 }, padding: 6 } } }
+  }
+});
+
+// --- MoM CHANGE ---
+const momChanges = [null, ((1386-1915)/1915*100).toFixed(1), ((2008-1386)/1386*100).toFixed(1), ((2504-2008)/2008*100).toFixed(1), ((2462-2504)/2504*100).toFixed(1)];
+new Chart(document.getElementById('momChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.months.slice(1),
+    datasets: [{ label: 'MoM % Change', data: momChanges.slice(1).map(Number), backgroundColor: momChanges.slice(1).map(v => Number(v) > 0 ? '#ef4444cc' : '#22c55ecc'), borderRadius: 4 }]
+  },
+  options: {
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y > 0 ? '+' : ''}${ctx.parsed.y}%` } } },
+    scales: {
+      x: { grid: { color: '#e5e5e0' }, ticks: { color: '#666' } },
+      y: { grid: { color: '#e5e5e0' }, ticks: { color: '#666', callback: v => `${v}%` }, title: { display: true, text: 'Change vs prior month', color: '#666', font: { size: 11 } } }
+    }
+  }
+});
+
+// --- WATERFALL (cost flow) ---
+new Chart(document.getElementById('waterfallChart'), {
+  type: 'bar',
+  data: {
+    labels: ['COGS Cost', 'Refunds Paid', 'Return Shipping', 'AMZ Fees', 'Disposal Fees', 'COGS Recovered', 'FBA Reimb.', 'Net True Cost'],
+    datasets: [{ label: '€', data: [83540,255816,8682,90,331,-55259,-2362,374345], backgroundColor: [
+      '#e87722cc','#ef4444cc','#f59e0bcc','#f59e0bcc','#ef4444cc','#22c55ecc','#22c55ecc','#3b82f6cc'
+    ], borderRadius: 4 }]
+  },
+  options: {
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${Math.abs(ctx.parsed.y).toLocaleString('de-DE')} €` } } },
+    scales: {
+      x: { grid: { color: '#e5e5e0' }, ticks: { color: '#666' } },
+      y: { grid: { color: '#e5e5e0' }, ticks: { color: '#666', callback: v => `${(v/1000).toFixed(0)}k €` } }
+    }
+  }
+});
+</script>
+</body>
+</html>
